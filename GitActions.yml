@@ -1,0 +1,69 @@
+name: Commit Message Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4      # downloads the repository source code onto the GitHub Actions runner. 
+
+      - name: Validate Commit Messages
+        uses: wagoid/commitlint-github-action@v6  #Action to ensure Commit standards.
+
+
+
+
+
+# *****  Branch validation check ********* 
+
+name: Branch Policy Check    # feature/* → develop and release/* → main.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate source and target branch
+        run: |
+          SOURCE=${{ github.head_ref }}
+          TARGET=${{ github.base_ref }}
+
+          echo "Source Branch: $SOURCE"
+          echo "Target Branch: $TARGET"
+
+          if [[ "$SOURCE" =~ ^feature/ ]] && [[ "$TARGET" == "develop" ]]; then
+            echo "Valid PR"
+          else
+            echo "Invalid Branch Mapping"
+            exit 1
+          fi
+``
+# ******** PR title validation ********* 
+
+name: PR Title Validation
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
