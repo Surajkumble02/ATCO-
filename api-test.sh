@@ -2,18 +2,23 @@
 
 set -e
 
-API_URL="https://jsonplaceholder.typicode.com/posts/1"
-
 echo "Calling API..."
 
-response=$(curl -s \
-  --location \
-  --request GET "$API_URL")
+status_code=$(curl \
+  -o response.json \
+  -s \
+  -w "%{http_code}" \
+  https://jsonplaceholder.typicode.com/posts/1)
 
-echo "Response:"
-echo "$response"
+echo "Status Code: $status_code"
 
-# Validate response contains expected value
-echo "$response" | grep '"id": 1'
+# Step 5 - Status Code Validation
+if [ "$status_code" -ne 200 ]; then
+  echo "API Failed"
+  exit 1
+fi
+
+# Step 4 - Response Validation
+grep '"id": 1' response.json
 
 echo "API Test Passed"
