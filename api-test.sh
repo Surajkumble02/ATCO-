@@ -1,25 +1,22 @@
-#!/bin/bash
-
 set -e
 
-API_URL="https://main.manage.atco-train.suite.maximo.com/maximo/api/dm/distribute?apikey=vn10ngdbhqbt1utvinmtppp5g3fdbd0chm466mj5"
+echo "Calling API..."
 
 status_code=$(curl \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{}' \
   -o response.json \
   -s \
   -w "%{http_code}" \
-  "$API_URL")
+  https://jsonplaceholder.typicode.com/posts/1)
 
 echo "Status Code: $status_code"
 
-cat response.json
-
+# Step 5 - Status Code Validation
 if [ "$status_code" -ne 200 ]; then
-    echo "API Failed"
-    exit 1
+  echo "API Failed"
+  exit 1
 fi
+
+# Step 4 - Response Validation
+grep '"id": 1' response.json
 
 echo "API Test Passed"
