@@ -66,4 +66,129 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+# ******** Linting Stage ******** 
+# static code analysis stage executed during a PR
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm ci
+
+      - uses: wearerequired/lint-action@v3   
+        with:
+          eslint: true
+          prettier: true
+
+
+
+
+#  ****** SAST CodeQL Validation *******
+
+
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3  # Downloads codeQl CLI, Language configuration (eg java)
+        with:
+          languages: javascript
+
+      #- name: Autobuild
+       # uses: github/codeql-action/autobuild@v3 # 
+
+      - name: Perform Analysis
+        uses: github/codeql-action/analyze@v3 # Runs security queries and uploads results as code scanning alerts
+
+
+
+
+
+# ***** Secret Scanning **********
+
+name: Secret Scan
+
+on:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # Fetches full Git history.
+
+      - uses: gitleaks/gitleaks-action@v3  # gitleak detect hardcoded secrets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  #other parameters need
+
+
+
+
+# ***** Package creaation - creating deployables ****** 
+
+jobs:
+  build-package:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4 # eg java 
+
+    - name: Build Package
+      run: mvn clean package  # using maven as build tool 
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4 
+      with:
+        name: application
+        path: target/*.jar
+
+
+# ***** Deploy Job ***** 
+
+deploy:
+  needs: build
+  runs-on: ubuntu-latest
+
+  steps:
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+
+      with:
+        name: app-package
+        path: ./artifact
+
+    - name: Verify Package
+      run: ls -la ./artifact
+``
+# Eg deploying to kubernetes
+#- name: Deploy to EKS
+#  run: |
+ #     kubectl apply -f k8s/
+
+
 
