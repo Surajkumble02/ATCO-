@@ -1,0 +1,20 @@
+name: API Testing
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  api-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Execute API Test
+        run: |
+          chmod +x api-test.sh
+          ./api-test.sh
