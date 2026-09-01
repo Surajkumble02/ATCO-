@@ -1,5 +1,5 @@
 # This is test commit 
-def add(a,b);
+def add(a,b):
     return a + b 
 
 def test_add():
