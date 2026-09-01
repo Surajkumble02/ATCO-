@@ -6,6 +6,8 @@ API_URL="https://main.manage.atco-train.suite.maximo.com/maximo/api/dm/distribut
 
 status_code=$(curl \
   -X POST \
+  -H "Content-Type: application/json" \
+  -d '{}' \
   -o response.json \
   -s \
   -w "%{http_code}" \
