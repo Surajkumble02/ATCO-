@@ -1,20 +1,31 @@
-name: API Testing
+name: API Test
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
+  pull_request:
 
 jobs:
   api-test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Execute API Test
+      - name: Run API Test
         run: |
           chmod +x api-test.sh
           ./api-test.sh
+
+      - name: Notify Teams on Failure
+        if: failure()
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d "{
+            \"text\":\"❌ API Test Failed
+
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}\"
+          }" \
+          "${{ secrets.TEAMS_WEBHOOK_URL }}"
