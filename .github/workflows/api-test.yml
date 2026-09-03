@@ -1,31 +1,22 @@
 name: API Test
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
-  api-test:
+  test-api:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Send HTTP Request
+        id: api_call
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.API_URL }}
+          method: GET
 
-      - name: Run API Test
+      - name: Print Response
         run: |
-          chmod +x api-test.sh
-          ./api-test.sh
-
-      - name: Notify Teams on Failure
-        if: failure()
-        run: |
-          curl -H "Content-Type: application/json" \
-          -d "{
-            \"text\":\"❌ API Test Failed
-
-            Repository: ${{ github.repository }}
-            Branch: ${{ github.ref_name }}
-            Workflow: ${{ github.workflow }}
-            Run ID: ${{ github.run_id }}\"
-          }" \
-          "${{ secrets.TEAMS_WEBHOOK_URL }}"
+          echo "Status Code: ${{ steps.api_call.outputs.status }}"
+          echo "Response:"
+          echo '${{ steps.api_call.outputs.response }}'
