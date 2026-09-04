@@ -4,7 +4,7 @@ public class HelloWorld {
 
         String message = "Hello CodeQL";
 
-        System.out.println(message);
+        System.out.println(message)
 
     }
 }
