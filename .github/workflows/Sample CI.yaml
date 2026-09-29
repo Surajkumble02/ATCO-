@@ -1,0 +1,295 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+  push:
+    branches:
+      - develop
+      - main
+
+env:
+  IMAGE_NAME: enterprise-app
+  REGISTRY: myacr.azurecr.io
+
+jobs:
+
+
+# PR VALIDATION
+# ==================================================
+
+  commit-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CommitLint
+        uses: wagoid/commitlint-github-action@v6
+
+  branch-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate Branch Mapping
+        run: |
+          echo "Source: ${{ github.head_ref }}"
+          echo "Target: ${{ github.base_ref }}"
+
+   #if [[ "$GITHUB_HEAD_REF" == feature/* &&
+  #"$GITHUB_BASE_REF" != "develop" ]]; then
+  #exit 1
+  #fi       
+
+  pr-title-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+# CODE QUALITY
+# ==================================================
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm ci
+
+      - uses: wearerequired/lint-action@v3
+        with:
+          eslint: true
+          prettier: true
+
+
+# CODEQL
+# ==================================================
+
+  codeql:
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ vars.CODEQL_LANGUAGES }}
+          #supports specific programming languages
+
+      - uses: github/codeql-action/analyze@v3
+
+
+# SONARQUBE
+# ==================================================
+
+  sonar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+
+
+# SECRET SCANNING
+# ==================================================
+
+  gitleaks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+# DEPENDENCY SCAN
+# ==================================================
+
+  dependency-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aquasecurity/trivy-action@0.28.0 # usualyy for docker image scanning, misconfigurations
+        with:
+          scan-type: fs
+          scan-ref: .
+
+
+# UNIT TESTS
+# ==================================================
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm ci
+
+      - run: npm test # runs as per the tests command define on package.json
+
+
+# BUILD PACKAGE
+# ==================================================
+
+  build:
+    needs:
+      - lint
+      - codeql
+      - sonar
+      - gitleaks
+      - dependency-scan
+      - test
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Package
+        run: |
+          zip -r release.zip .
+
+      - name: Generate Checksum
+        run: |
+          sha256sum release.zip > checksum.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: |
+            release.zip
+            checksum.txt
+
+
+# CONTAINER BUILD
+# ==================================================
+
+  docker-build:
+    needs: build
+    runs-on: ubuntu-latest
+
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package
+
+      - name: Build Image
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.run_number }} .
+
+      - name: Container Security Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+
+
+# ACR PUSH
+# ==================================================
+
+  push-acr:
+    needs: docker-build
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login ACR
+        run: |
+          az acr login \
+            --name myacr
+
+      - name: Push Image
+        run: |
+          docker push \
+          $REGISTRY/$IMAGE_NAME:${{ github.run_number }}
+
+
+# DEPLOY TO ARO
+# ==================================================
+
+  deploy:
+    needs: push-acr
+    runs-on:
+      - self-hosted
+      - linux
+
+    environment: DEV
+
+    steps:
+
+      - name: Login ARO
+        run: |
+          oc login \
+          ${{ secrets.ARO_URL }} \
+          --token=${{ secrets.ARO_TOKEN }}
+
+      - name: Update Deployment
+        run: |
+          oc set image deployment/app \
+          app=$REGISTRY/$IMAGE_NAME:${{ github.run_number }}
+
+      - name: Rollout Restart
+        run: |
+          oc rollout restart deployment/app
+
+      - name: Rollout Status
+        run: |
+          oc rollout status deployment/app
+
+
+
+
+
+
+# ==================================================
+# VALIDATION
+# ==================================================
+
+ # validation:
+ #   needs: deploy
+ #   runs-on: ubuntu-latest
+
+  #  steps:
+
+ #     - name: Smoke Test
+ #       run: |
+ #         curl https://myapp.company.com/health
+
+ #     - name: Health Check
+ #       run: |
+#          curl https://myapp.company.com/actuator/health
